@@ -1,5 +1,7 @@
 include(CheckCXXSymbolExists)
 
+CHECK_CXX_SYMBOL_EXISTS(mprotect sys/mman.h HAVE_MPROTECT)
+
 # C++17 has std::aligned_alloc :(
 
 CHECK_CXX_SYMBOL_EXISTS(malloc cstdlib HAVE_MALLOC)

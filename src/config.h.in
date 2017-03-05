@@ -39,4 +39,6 @@
 #cmakedefine HAVE_MM_MALLOC
 #cmakedefine HAVE_ALIGNED_MALLOC
 
+#cmakedefine HAVE_MPROTECT
+
 #define CMAKE_SOURCE_DIR "@CMAKE_SOURCE_DIR@"

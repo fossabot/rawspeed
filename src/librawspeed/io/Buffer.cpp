@@ -19,11 +19,17 @@
     Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
+#include "rawspeedconfig.h" // for HAVE_MPROTECT
 #include "io/Buffer.h"
-#include "common/Common.h"  // for uint64, uchar8, alignedMalloc, _aligne...
-#include "common/Memory.h"  // for alignedMalloc, alignedFree
-#include "io/IOException.h" // for IOException, ThrowIOE
+#include "common/Common.h"  // for uchar8
+#include "common/Memory.h"  // for alignedFree
+#include "io/IOException.h" // for IOException (ptr only), ThrowIOE
 #include <memory>           // for unique_ptr
+
+#if defined(DEBUG) && defined(HAVE_MPROTECT)
+#include <sys/mman.h> // for mprotect, PROT_READ
+#include <unistd.h>   // for sysconf, _SC_PAGE_SIZE
+#endif
 
 using std::unique_ptr;
 
@@ -33,9 +39,21 @@ unique_ptr<uchar8, decltype(&alignedFree)> Buffer::Create(size_type size) {
   if (!size)
     ThrowIOE("Trying to allocate 0 bytes sized buffer.");
 
+#if !(defined(DEBUG) && defined(HAVE_MPROTECT))
   unique_ptr<uchar8, decltype(&alignedFree)> data(
       (uchar8*)alignedMalloc<16>(roundUp(size + BUFFER_PADDING, 16)),
       alignedFree);
+#else
+  static const long int pagesize = sysconf(_SC_PAGE_SIZE);
+  if (pagesize < 1)
+    ThrowIOE("Unknown pagesize: %li", pagesize);
+
+  unique_ptr<uchar8, decltype(&alignedFree)> data(
+      (uchar8*)alignedMalloc(roundUp(size + BUFFER_PADDING, pagesize),
+                             pagesize),
+      alignedFree);
+#endif
+
   if (!data.get())
     ThrowIOE("Failed to allocate %uz bytes memory buffer.", size);
 
@@ -56,12 +74,25 @@ Buffer::Buffer(unique_ptr<uchar8, decltype(&alignedFree)> data_,
     ThrowIOE("Memory buffer is nonexistant");
 
   isOwner = true;
+
+#if defined(DEBUG) && defined(HAVE_MPROTECT)
+  // owning buffer is strictly read-only.
+  if (mprotect(static_cast<void*>(const_cast<uchar8*>(data)), size,
+               PROT_READ) == -1)
+    ThrowIOE("Failed to set read-only protection on a buffer.");
+#endif
 }
 
 Buffer::Buffer(size_type size_) : Buffer(Create(size_), size_) {}
 
 Buffer::~Buffer() {
   if (isOwner) {
+#if defined(DEBUG) && defined(HAVE_MPROTECT)
+    /*if (*/ mprotect(static_cast<void*>(const_cast<uchar8*>(data)), size,
+                      PROT_READ | PROT_WRITE) /* == -1)
+      ThrowIOE("Failed to release read-only protection of a buffer.")*/;
+#endif
+
     alignedFree(const_cast<uchar8*>(data));
   }
 }

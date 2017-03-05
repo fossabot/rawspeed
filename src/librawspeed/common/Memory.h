@@ -35,8 +35,7 @@ namespace RawSpeed {
 
 // coverity[+alloc]
 void* alignedMalloc(size_t size, size_t alignment)
-    __attribute__((malloc, warn_unused_result, alloc_size(1), alloc_align(2),
-                   deprecated("use alignedMalloc<alignment>(size)")));
+    __attribute__((malloc, warn_unused_result, alloc_size(1), alloc_align(2)));
 
 template <size_t alignment>
 // coverity[+alloc]
@@ -55,7 +54,6 @@ alignedMalloc(size_t size) {
 #endif
 #endif
 
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   return alignedMalloc(size, alignment);
 }
 
