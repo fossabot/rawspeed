@@ -1,4 +1,5 @@
 FILE(GLOB COMMON_SOURCES
+  "AlignedAllocator.h"
   "Common.cpp"
   "Common.h"
   "Memory.cpp"

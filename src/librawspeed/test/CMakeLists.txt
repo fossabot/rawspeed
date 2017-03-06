@@ -23,6 +23,7 @@ if(WITH_OPENMP AND OPENMP_FOUND)
 endif()
 
 FILE(GLOB RAWSPEED_TESTS_SOURCES
+  "../common/AlignedAllocatorTest.cpp"
   "../common/CommonTest.cpp"
   "../common/MemoryTest.cpp"
   "../common/PointTest.cpp"
