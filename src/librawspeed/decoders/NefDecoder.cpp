@@ -108,15 +108,22 @@ RawImage NefDecoder::decodeRawInternal() {
   }
 
   try {
-    NikonDecompressor::decompress(
-        mRaw, ByteStream(mFile, offsets->getU32(), counts->getU32()),
-        meta->getData(), mRaw->dim, bitPerPixel, uncorrectedRawValues);
+    NikonDecompressor n(mRaw,
+                        ByteStream(mFile, offsets->getU32(), counts->getU32()),
+                        meta->getData(), mRaw->dim, bitPerPixel,
+                        uncorrectedRawValues, &this->decoder_random);
+    // startThreads();
+    NikonDecompressor::predict(mRaw, this->decoder_random, 0, mRaw->dim.y);
   } catch (IOException &e) {
     mRaw->setError(e.what());
     // Let's ignore it, it may have delivered somewhat useful data.
   }
 
   return mRaw;
+}
+
+void NefDecoder::decodeThreaded(RawDecoderThread* t) {
+  NikonDecompressor::predict(mRaw, this->decoder_random, t->start_y, t->end_y);
 }
 
 /*

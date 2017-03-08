@@ -20,7 +20,9 @@
 
 #pragma once
 
-#include "common/Common.h"                      // for uint32
+#include "common/Common.h"   // for uint32
+#include "common/Point.h"    // for iPoint2D
+#include "common/RawImage.h" // for RawImage, RawImageData, RawI...
 #include "decompressors/AbstractDecompressor.h" // for AbstractDecompressor
 #include "io/ByteStream.h"                      // for ByteStream
 
@@ -34,11 +36,21 @@ class HuffmanTable;
 
 class NikonDecompressor final : public AbstractDecompressor {
 public:
-  static void decompress(RawImage& mRaw, ByteStream&& data, ByteStream metadata,
-                         const iPoint2D& size, uint32 bitsPS,
-                         bool uncorrectedRawValues);
+  NikonDecompressor(RawImage& mRaw_, ByteStream&& data, ByteStream metadata,
+                    const iPoint2D& size_, uint32 bitsPS,
+                    bool uncorrectedRawValues_, uint32* random);
+  //   ~NikonDecompressor();
+
+  static void predict(RawImage& mRaw, uint32 random, uint32 start_y,
+                      uint32 end_y);
 
 private:
+  RawImage mRaw;
+  const iPoint2D size;
+  bool uncorrectedRawValues;
+
+  std::vector<ushort16> curve;
+  uint32 cw;
   static const uchar8 nikon_tree[][2][16];
   static HuffmanTable createHuffmanTable(uint32 huffSelect);
 };

@@ -46,11 +46,13 @@ public:
   RawImage decodeRawInternal() override;
   void decodeMetaDataInternal(const CameraMetaData* meta) override;
   void checkSupportInternal(const CameraMetaData* meta) override;
+  void decodeThreaded(RawDecoderThread* t) override;
 
 protected:
   struct NefSlice final : public RawSlice {};
 
 private:
+  uint32 decoder_random;
   int getDecoderVersion() const override { return 5; }
   bool D100IsCompressed(uint32 offset);
   bool NEFIsUncompressed(const TiffIFD* raw);

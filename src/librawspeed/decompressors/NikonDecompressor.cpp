@@ -62,9 +62,11 @@ HuffmanTable NikonDecompressor::createHuffmanTable(uint32 huffSelect) {
   return ht;
 }
 
-void NikonDecompressor::decompress(RawImage& mRaw, ByteStream&& data,
-                                   ByteStream metadata, const iPoint2D& size,
-                                   uint32 bitsPS, bool uncorrectedRawValues) {
+NikonDecompressor::NikonDecompressor(RawImage& mRaw_, ByteStream&& data,
+                                     ByteStream metadata, const iPoint2D& size_,
+                                     uint32 bitsPS, bool uncorrectedRawValues_,
+                                     uint32* random)
+    : mRaw(mRaw_), size(size_), uncorrectedRawValues(uncorrectedRawValues_) {
   uint32 v0 = metadata.getByte();
   uint32 v1 = metadata.getByte();
   uint32 huffSelect = 0;
@@ -90,7 +92,7 @@ void NikonDecompressor::decompress(RawImage& mRaw, ByteStream&& data,
   // the very last value is not part of the used table but necessary
   // to linearly interpolate the last segment, therefor the '+1/-1'
   // size adjustments of 'curve'.
-  vector<ushort16> curve((1 << bitsPS & 0x7fff)+1);
+  curve.resize((1 << bitsPS & 0x7fff) + 1);
   for (size_t i = 0; i < curve.size(); i++)
     curve[i] = i;
 
@@ -123,12 +125,8 @@ void NikonDecompressor::decompress(RawImage& mRaw, ByteStream&& data,
   uchar8 *draw = mRaw->getData();
   uint32 pitch = mRaw->pitch;
 
-  int pLeft1 = 0;
-  int pLeft2 = 0;
-  uint32 cw = size.x / 2;
-  uint32 random = bits.peekBits(24);
-  //allow gcc to devirtualize the calls below
-  auto *rawdata = (RawImageDataU16 *)mRaw.get();
+  cw = size.x / 2;
+  *random = bits.peekBits(24);
   for (uint32 y = 0; y < (unsigned)size.y; y++) {
     if (split && y == split) {
       ht = createHuffmanTable(huffSelect + 1);
@@ -136,23 +134,48 @@ void NikonDecompressor::decompress(RawImage& mRaw, ByteStream&& data,
     auto *dest = (ushort16 *)&draw[y * pitch]; // Adjust destination
     pUp1[y&1] += ht.decodeNext(bits);
     pUp2[y&1] += ht.decodeNext(bits);
-    pLeft1 = pUp1[y&1];
-    pLeft2 = pUp2[y&1];
-    rawdata->setWithLookUp(clampBits(pLeft1,15), (uchar8*)dest++, &random);
-    rawdata->setWithLookUp(clampBits(pLeft2,15), (uchar8*)dest++, &random);
+
+    int pLeft1 = pUp1[y & 1];
+    int pLeft2 = pUp2[y & 1];
+
+    *dest = pLeft1;
+    dest++;
+    *dest = pLeft2;
+    dest++;
+
     for (uint32 x = 1; x < cw; x++) {
       pLeft1 += ht.decodeNext(bits);
       pLeft2 += ht.decodeNext(bits);
-      rawdata->setWithLookUp(clampBits(pLeft1,15), (uchar8*)dest++, &random);
-      rawdata->setWithLookUp(clampBits(pLeft2,15), (uchar8*)dest++, &random);
+      *dest = pLeft1;
+      dest++;
+      *dest = pLeft2;
+      dest++;
     }
   }
+}
 
+void NikonDecompressor::predict(RawImage& mRaw, uint32 random, uint32 start_y,
+                                uint32 end_y) {
+  auto* rawdata = (RawImageDataU16*)mRaw.get();
+  uchar8* draw = mRaw->getData();
+  uint32 pitch = mRaw->pitch;
+
+  for (uint32 y = start_y; y < end_y; y++) {
+    auto* dest = (ushort16*)&draw[y * pitch];
+    for (uint32 x = 0; x < (unsigned)mRaw->dim.x; x++) {
+      auto p = *dest;
+      rawdata->setWithLookUp(p, (uchar8*)dest, &random);
+      dest++;
+    }
+  }
+}
+/*
+NikonDecompressor::~NikonDecompressor() {
   if (uncorrectedRawValues) {
     mRaw->setTable(&curve[0], curve.size(), false);
   } else {
     mRaw->setTable(nullptr);
   }
-}
+}*/
 
 } // namespace RawSpeed

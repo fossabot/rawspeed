@@ -131,7 +131,8 @@ public:
   iPoint2D __attribute__((pure)) getCropOffset() const;
   virtual void scaleBlackWhite() = 0;
   virtual void calculateBlackAreas() = 0;
-  virtual void setWithLookUp(ushort16 value, uchar8* dst, uint32* random) = 0;
+  virtual void setWithLookUp(ushort16 value, uchar8* dst,
+                             uint32* random) const = 0;
   void sixteenBitLookup();
   void transferBadPixelsToMap();
   void fixBadPixels();
@@ -194,7 +195,8 @@ class RawImageDataU16 final : public RawImageData {
 public:
   void scaleBlackWhite() override;
   void calculateBlackAreas() override;
-  void setWithLookUp(ushort16 value, uchar8* dst, uint32* random) override;
+  void setWithLookUp(ushort16 value, uchar8* dst,
+                     uint32* random) const override;
 
 protected:
   void scaleValues_plain(int start_y, int end_y);
@@ -214,7 +216,8 @@ class RawImageDataFloat final : public RawImageData {
 public:
   void scaleBlackWhite() override;
   void calculateBlackAreas() override;
-  void setWithLookUp(ushort16 value, uchar8 *dst, uint32 *random) override;
+  void setWithLookUp(ushort16 value, uchar8* dst,
+                     uint32* random) const override;
 
 protected:
   void scaleValues(int start_y, int end_y) override;
@@ -272,7 +275,8 @@ inline RawImage RawImage::create(const iPoint2D &dim, RawImageType type,
 // You must supply the destination where the value should be written, and a pointer to
 // a value that will be used to store a random counter that can be reused between calls.
 // this needs to be inline to speed up tight decompressor loops
-inline void RawImageDataU16::setWithLookUp(ushort16 value, uchar8* dst, uint32* random) {
+inline void RawImageDataU16::setWithLookUp(ushort16 value, uchar8* dst,
+                                           uint32* random) const {
   auto *dest = (ushort16 *)dst;
   if (table == nullptr) {
     *dest = value;
