@@ -37,9 +37,10 @@
 #include "tiff/TiffTag.h"                           // for TiffTag::FUJIOLDWB
 #include <cstdio>                                   // for size_t
 #include <cstring>                                  // for memcmp
-#include <memory>                                   // for unique_ptr, allo...
-#include <string>                                   // for string
-#include <vector>                                   // for vector
+#include <iostream>
+#include <memory> // for unique_ptr, allo...
+#include <string> // for string
+#include <vector> // for vector
 
 using namespace std;
 
@@ -224,9 +225,39 @@ void RafDecoder::decodeMetaDataInternal(const CameraMetaData* meta) {
     }
   }
 
+  auto raw = mRootIFD->getIFDsWithTag((TiffTag)0x0131);
+  if (!raw.empty()) {
+    for (const auto& ifd : raw) {
+      TiffEntry* entry = ifd->getEntry((TiffTag)0x0131);
+      if (entry->count != 36)
+        continue;
+
+      mRaw->cfa.setSize({6, 6});
+
+      static const map<uchar8, CFAColor> byte2enum = {
+          {0, CFA_RED}, {1, CFA_GREEN}, {2, CFA_BLUE},
+      };
+
+      for (int y = 0; y < 6; y++) {
+        for (int x = 0; x < 6; x++) {
+          uint32 c1 = entry->getByte(x + 6 * y);
+          CFAColor c2 = CFA_UNKNOWN;
+
+          try {
+            c2 = byte2enum.at(c1);
+          } catch (std::out_of_range&) {
+            ThrowRDE("Unsupported CFA Color: %u", c1);
+          }
+
+          mRaw->cfa.setColorAt(iPoint2D((x + 5) % 6, (y + 1) % 6), c2);
+        }
+      }
+    }
+  }
+
   mRaw->whitePoint = sensor->mWhiteLevel;
   mRaw->blackAreas = cam->blackAreas;
-  mRaw->cfa = cam->cfa;
+  // mRaw->cfa = cam->cfa;
   mRaw->metadata.canonical_make = cam->canonical_make;
   mRaw->metadata.canonical_model = cam->canonical_model;
   mRaw->metadata.canonical_alias = cam->canonical_alias;
