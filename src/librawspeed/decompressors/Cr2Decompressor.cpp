@@ -94,7 +94,6 @@ void Cr2Decompressor::decodeN_X_Y()
 {
   BitPumpJPEG bitStream(input);
 
-  uint32 pixelPitch = mRaw->pitch / 2; // Pitch in pixel
   if (frame.cps != 3 && frame.w * frame.cps > 2 * frame.h) {
     // Fix Canon double height issue where Canon doubled the width and halfed
     // the height (e.g. with 5Ds), ask Canon. frame.w needs to stay as is here
@@ -112,38 +111,34 @@ void Cr2Decompressor::decodeN_X_Y()
   }
 
   // what is the total width of all the slices?
-  auto fullWidth = accumulate(slicesWidths.begin(), slicesWidths.end(), 0);
+  const auto fullWidth =
+      accumulate(slicesWidths.begin(), slicesWidths.end(), 0u);
   assert(fullWidth > 0);
-  assert(fullWidth > (int)frame.w);
+  assert(fullWidth > frame.w);
+  // however, fullWidth is not guaranteed to be multiple of frame.w
 
   // what is the total count of pixels in all the slices?
-  auto fullArea = fullWidth * frame.h;
+  const auto fullArea = fullWidth * frame.h;
+  assert(fullArea > 0);
 
-  // make sure that it a multiple of the lenght when the predictor changes
-  fullArea = roundUp(fullArea, frame.w);
-  assert(isAligned(fullArea, frame.w));
+  // make sure that it a multiple of frame.w
+  const auto adjustedFullArea = roundUp(fullArea, frame.w);
+  assert(isAligned(adjustedFullArea, frame.w));
+  assert(adjustedFullArea >= fullArea);
 
-  // so if we want each line to be predictable separately, how much lines total?
-  auto adjustedHeight = fullArea / frame.w;
+  // so if we want each line to be of frame.w size, how much lines total?
+  const auto adjustedHeight = adjustedFullArea / frame.w;
   assert(adjustedHeight > frame.h);
 
-  // predictor is updated every frame.w, but fullWidth is not a multiple of that
-  fullWidth = roundUp(fullWidth, frame.w);
-  assert(isAligned(fullWidth, frame.w));
-  assert(fullWidth > (int)frame.w);
+  // each row has it's own predictor
+  // (first column needs to be predicted sequentially)
+  iPoint2D slicedDims(frame.w, adjustedHeight);
 
-  // iPoint2D slicedDims(frame.w, adjustedHeight);
-  iPoint2D slicedDims(fullWidth, (int)frame.h);
+  // will need tmp image because will first decode without unslicing.
+  RawImage sRaw = RawImage::create(slicedDims, TYPE_USHORT16, frame.cps);
 
-  // by default, the tmp image is the the final image.
-  RawImage sRaw(&(*mRaw));
-
-  const bool unslicingNeeded = slicedDims != mRaw->dim;
-
-  if (unslicingNeeded) {
-    // if the image needs to be unsliced later on, we'll have to use tmp image
-    sRaw = RawImage::create(slicedDims, TYPE_USHORT16, frame.cps);
-  }
+  uint32 inPixelPitch = sRaw->pitch / 2;  // Pitch in pixel
+  uint32 outPixelPitch = mRaw->pitch / 2; // Pitch in pixel
 
   // To understand the CR2 slice handling and sampling factor behavior, see
   // https://github.com/lclevy/libcraw2/blob/master/docs/cr2_lossless.pdf?raw=true
@@ -159,102 +154,89 @@ void Cr2Decompressor::decodeN_X_Y()
   // STEP ONE: decode. this must be done fully sequentially, because HT.
 
   auto ht = getHuffmanTables<N_COMP>();
+  unsigned processedPixels = 0;
 
-  unsigned processedLineSlices = 0;
-  for (unsigned sliceWidth : slicesWidths) {
-    for (unsigned y = 0; y < frame.h;
-         y += yStepSize, processedLineSlices += yStepSize) {
+  for (unsigned y = 0; y < adjustedHeight; y += yStepSize) {
+    auto src = (ushort16*)sRaw->getDataUncropped(0, y);
 
-      unsigned srcX =
-          processedLineSlices / frame.h * slicesWidths[0] / sRaw->getCpp();
+    // last row may be larger than the data size, see roundUp() above
+    for (unsigned x = 0; x < frame.w && processedPixels < fullArea;
+         x += xStepSize, processedPixels += xStepSize, src += xStepSize) {
+      if (X_S_F == 1) { // will be optimized out
+        unroll_loop<N_COMP>(
+            [&](int i) { src[i] = ht[i]->decodeNext(bitStream); });
+      } else {
+        unroll_loop<Y_S_F>([&](int i) {
+          src[0 + i * inPixelPitch] = ht[0]->decodeNext(bitStream);
+          src[3 + i * inPixelPitch] = ht[0]->decodeNext(bitStream);
+        });
 
-      auto src = (ushort16*)sRaw->getDataUncropped(srcX, y);
-
-      for (unsigned x = 0; x < sliceWidth; x += xStepSize, src += xStepSize) {
-        if (X_S_F == 1) { // will be optimized out
-          unroll_loop<N_COMP>([&](int i) {
-            src[i] = ht[i]->decodeNext(bitStream);
-          });
-        } else {
-          unroll_loop<Y_S_F>([&](int i) {
-            src[0 + i * pixelPitch] = ht[0]->decodeNext(bitStream);
-            src[3 + i * pixelPitch] = ht[0]->decodeNext(bitStream);
-          });
-
-          src[1] = ht[1]->decodeNext(bitStream);
-          src[2] = ht[2]->decodeNext(bitStream);
-        }
+        src[1] = ht[1]->decodeNext(bitStream);
+        src[2] = ht[2]->decodeNext(bitStream);
       }
     }
   }
   input.skipBytes(bitStream.getBufferPosition());
 
-  // STEP TWO: predict.
+  // STEP TWO: bootstrap predicting by sequentially predicting the first column.
 
   auto pred = getInitialPredictors<N_COMP>();
-  auto predNext = (ushort16*)sRaw->getDataUncropped(0, 0);
 
-  processedLineSlices = 0;
-  unsigned processedPixels = 0;
+  for (unsigned y = 0; y < adjustedHeight; y += yStepSize) {
+    auto src = (ushort16*)sRaw->getDataUncropped(0, y);
 
-  for (unsigned sliceWidth : /*{*/ slicesWidths /*[0]}*/) {
-    for (unsigned y = 0; y < frame.h;
-         y += yStepSize, processedLineSlices += yStepSize) {
-      unsigned srcX =
-          processedLineSlices / frame.h * slicesWidths[0] / sRaw->getCpp();
+    if (X_S_F == 1) { // will be optimized out
+      unroll_loop<N_COMP>([&](int i) {
+        src[i] = pred[i] += src[i];
+      });
+    } else {
+      unroll_loop<Y_S_F>([&](int i) {
+        src[0 + i * inPixelPitch] = pred[0] += src[0 + i * inPixelPitch];
+        src[3 + i * inPixelPitch] = pred[0] += src[3 + i * inPixelPitch];
+      });
 
-      auto src = (ushort16*)sRaw->getDataUncropped(srcX, y);
+      src[1] = pred[1] += src[1];
+      src[2] = pred[2] += src[2];
+    }
+  }
 
-      for (unsigned x = 0; x < sliceWidth;
-           x += xStepSize, src += xStepSize, processedPixels += X_S_F) {
-        // check if we processed one full raw row worth of pixels
-        if (processedPixels == frame.w) {
-          // if yes -> update predictor by going back exactly one row,
-          // no matter where we are right now.
-          // makes no sense from an image compression point of view, ask Canon.
-          copy_n(predNext, N_COMP, pred.data());
-          predNext = src;
-          processedPixels = 0;
-        }
+  // STEP THREE: predict!
 
-        if (X_S_F == 1) { // will be optimized out
-          unroll_loop<N_COMP>([&](int i) {
-            src[i] = pred[i] += src[i];
-          });
-        } else {
-          unroll_loop<Y_S_F>([&](int i) {
-            src[0 + i * pixelPitch] = pred[0] += src[0 + i * pixelPitch];
-            src[3 + i * pixelPitch] = pred[0] += src[3 + i * pixelPitch];
-          });
+  for (unsigned y = 0; y < adjustedHeight; y += yStepSize) {
+    auto src = (ushort16*)sRaw->getDataUncropped(0, y);
 
-          src[1] = pred[1] += src[1];
-          src[2] = pred[2] += src[2];
-        }
+    // first pixel is already predicted, so setup predictor with that data
+    auto lPred = getInitialPredictors<N_COMP>();
+    copy_n(src, N_COMP, lPred.data());
+
+    // careful not to re-predict that first pixel over again!
+    unsigned x = xStepSize;
+    src += xStepSize;
+
+    // and now start prediction from the second pixel onwards...
+    for (; x < frame.w; x += xStepSize, src += xStepSize) {
+      if (X_S_F == 1) { // will be optimized out
+        unroll_loop<N_COMP>([&](int i) {
+          src[i] = lPred[i] += src[i];
+        });
+      } else {
+        unroll_loop<Y_S_F>([&](int i) {
+          src[0 + i * inPixelPitch] = lPred[0] += src[0 + i * inPixelPitch];
+          src[3 + i * inPixelPitch] = lPred[0] += src[3 + i * inPixelPitch];
+        });
+
+        src[1] = lPred[1] += src[1];
+        src[2] = lPred[2] += src[2];
       }
     }
   }
 
-  // do we need to unslice the image?
-  if (!unslicingNeeded)
-    return;
+  // STEP FOUR: unslice...
 
-  for (unsigned y = 0; y < (unsigned)mRaw->dim.y; y++) {
-    auto dst = (ushort16*)mRaw->getDataUncropped(0, y);
-
-    for (unsigned x = 0; x < mRaw->dim.x * frame.cps; x++, dst++) {
-      *dst = 0;
-    }
-  }
-
-  // if we do need to unslice, let's abort for now.
-  ThrowRDE("image still needs unslicing!");
-
-  // STEP THREE: unslice.
-
-  processedLineSlices = 0;
+  unsigned processedLineSlices = 0;
 
   for (unsigned sliceWidth : slicesWidths) {
-    for (unsigned y = 0; y < frame.h;
+    for (unsigned y = 0; y < adjustedHeight;
          y += yStepSize, processedLineSlices += yStepSize) {
       unsigned srcX =
           processedLineSlices / frame.h * slicesWidths[0] / sRaw->getCpp();
@@ -284,8 +266,8 @@ void Cr2Decompressor::decodeN_X_Y()
           });
         } else {
           unroll_loop<Y_S_F>([&](int i) {
-            dest[0 + i * pixelPitch] = src[0 + i * pixelPitch];
-            dest[3 + i * pixelPitch] = src[3 + i * pixelPitch];
+            dest[0 + i * outPixelPitch] = src[0 + i * inPixelPitch];
+            dest[3 + i * outPixelPitch] = src[3 + i * inPixelPitch];
           });
 
           dest[1] = src[1];
