@@ -1,4 +1,5 @@
 FILE(GLOB SOURCES
+  "BinarySearchTree.h"
   "Common.cpp"
   "Common.h"
   "Cpuid.cpp"
