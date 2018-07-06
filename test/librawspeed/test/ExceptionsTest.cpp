@@ -1,7 +1,7 @@
 /*
     RawSpeed - RAW file decoder.
 
-    Copyright (C) 2016-2017 Roman Lebedev
+    Copyright (C) 2016-2018 Roman Lebedev
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Lesser General Public
@@ -25,6 +25,7 @@
 #include "metadata/CameraMetadataException.h" // for CameraMetadataExceptio...
 #include "parsers/CiffParserException.h"      // for CiffParserException (p...
 #include "parsers/FiffParserException.h"      // for FiffParserException (p...
+#include "parsers/IsoMParserException.h"      // for ThrowIPE, IsoMParserEx...
 #include "parsers/RawParserException.h"       // for ThrowRPE, RawParserEx...
 #include "parsers/TiffParserException.h"      // for ThrowTPE, TiffParserEx...
 #include <exception>                          // IWYU pragma: keep
@@ -39,6 +40,7 @@ using rawspeed::CiffParserException;
 using rawspeed::FiffParserException;
 using rawspeed::FileIOException;
 using rawspeed::IOException;
+using rawspeed::IsoMParserException;
 using rawspeed::RawDecoderException;
 using rawspeed::RawParserException;
 using rawspeed::RawspeedException;
@@ -92,13 +94,16 @@ template <> void* MetaHelper<FiffParserException>(const char* str) {
   ThrowFPE(FMT, str);
 }
 
+template <> void* MetaHelper<IsoMParserException>(const char* str) {
+  ThrowIPE(FMT, str);
+}
+
 template <class T> class ExceptionsTest : public testing::Test {};
 
-using Classes =
-    testing::Types<RawspeedException, CameraMetadataException,
-                   CiffParserException, FileIOException, IOException,
-                   RawDecoderException, TiffParserException,
-                   FiffParserException, RawParserException>;
+using Classes = testing::Types<
+    RawspeedException, CameraMetadataException, CiffParserException,
+    FileIOException, IOException, RawDecoderException, TiffParserException,
+    FiffParserException, IsoMParserException, RawParserException>;
 
 TYPED_TEST_CASE(ExceptionsTest, Classes);
 
