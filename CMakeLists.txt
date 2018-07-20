@@ -100,6 +100,7 @@ if(BUILD_TOOLS)
 else()
   set(RAWSPEED_ENABLE_SAMPLE_BASED_TESTING OFF CACHE BOOL "If enabled, allows to use rstest to check the samples specified by RAWSPEED_REFERENCE_SAMPLE_ARCHIVE" FORCE)
 endif()
+option(RAWSPEED_BUILD_STAGE1 "Whether to build special stage-1 version of the RawSpeed library, that will produce instrumentation profile" OFF)
 if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
   option(USE_LLVM_OPT_REPORT "(Clang only) Save compiler optimizations records and show them" OFF)
 else()
@@ -208,6 +209,10 @@ add_subdirectory(data)
 
 if(BUILD_DOCS)
   add_subdirectory(docs)
+endif()
+
+if(RAWSPEED_BUILD_STAGE1)
+  include(RawSpeed-stage1)
 endif()
 
 feature_summary(WHAT ALL)

@@ -29,6 +29,9 @@ set (CLANG_DISABLED_WARNING_FLAGS
   "zero-as-null-pointer-constant" # temporary
 )
 
+set (CLANG_NO_ERROR_WARNING_FLAGS
+)
+
 # Yes, these have to be *re-enabled* after CLANG_DISABLED_WARNING_FLAGS.
 set (CLANG_REENABLED_WARNING_FLAGS
   "extra-semi"
@@ -58,12 +61,22 @@ if(NOT (UNIX OR APPLE))
   list(APPEND CLANG_DISABLED_WARNING_FLAGS "nonportable-system-include-path")
 endif()
 
+if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND
+   RAWSPEED_ENABLE_INSTR_PROFILE STREQUAL "PGOUSE")
+ # Some source files are just not covered at all
+ list(APPEND CLANG_NO_ERROR_WARNING_FLAGS "profile-instr-unprofiled")
+endif()
+
 foreach(warning ${CLANG_WARNING_FLAGS})
   CHECK_CXX_COMPILER_FLAG_AND_ENABLE_IT(-W${warning})
 endforeach()
 
 foreach(warning ${CLANG_DISABLED_WARNING_FLAGS})
   CHECK_CXX_COMPILER_FLAG_AND_ENABLE_IT(-Wno-${warning})
+endforeach()
+
+foreach(warning ${CLANG_NO_ERROR_WARNING_FLAGS})
+  CHECK_CXX_COMPILER_FLAG_AND_ENABLE_IT(-Wno-error=${warning})
 endforeach()
 
 foreach(warning ${CLANG_REENABLED_WARNING_FLAGS})

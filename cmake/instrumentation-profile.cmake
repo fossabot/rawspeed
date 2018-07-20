@@ -35,6 +35,7 @@ set(LDFLAGS "")
 if(RAWSPEED_ENABLE_INSTR_PROFILE STREQUAL "PGOUSE")
   add_feature_info("Use profile-guided optimization profile" ON "the existing "
                    "instrumentation-based profile will be used by the compiler.")
+  set(RAWSPEED_BUILD_STAGE1 ON CACHE BOOL "" FORCE)
   if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     include(produce-dummy-llvm-profdata-placeholder)
     set(CFLAGS "${CFLAGS} -fprofile-instr-use=\"${RAWSPEED_PROFDATA_FILE}\"")
