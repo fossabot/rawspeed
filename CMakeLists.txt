@@ -120,6 +120,8 @@ set(LIB_FUZZING_ENGINE "OFF" CACHE STRING "Either OFF, or overrides location of 
 
 set(RAWSPEED_REFERENCE_SAMPLE_ARCHIVE "~/raw-camera-samples/raw.pixls.us-unique" CACHE PATH "The location of the reference sample set to use. Should contain filelist.sha1 and timestamp.txt")
 
+option(RAWSPEED_ENABLE_INSTR_PROFILE "Support generating of instrumentation-based source profiling. Can be either OFF (disabled, default); COVERAGE (for source code coverage report); PGOGEN (for generation of the profile) or finally, PGOUSE (for the actual profile-guided-optimization)" OFF)
+
 set(RAWSPEED_PROFDATA_FILE "${PROJECT_BINARY_DIR}/rawspeed.profdata"
     CACHE FILEPATH "The location of the .profdata file")
 
@@ -150,6 +152,7 @@ else()
 endif()
 
 include(build-type)
+include(instrumentation-profile)
 
 if(RAWSPEED_USE_LIBCXX)
   include(libc++)
@@ -205,29 +208,6 @@ add_subdirectory(data)
 
 if(BUILD_DOCS)
   add_subdirectory(docs)
-endif()
-
-if(BUILD_TESTING AND CMAKE_BUILD_TYPE STREQUAL "COVERAGE")
-  if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-    include(llvm-profdata)
-    include(llvm-cov)
-    include(produce-dummy-llvm-profdata-placeholder)
-  elseif(CMAKE_COMPILER_IS_GNUCXX OR
-         CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
-    include(gcc-gcov)
-
-    find_package(LCov)
-    find_package(GenHtml)
-
-    if(LCov_FOUND AND GenHtml_FOUND)
-      include(lcov)
-      include(genhtml)
-      include(gcc-coverage)
-    else()
-      message(WARNING "Did not find lcov and genhtml. "
-                      "Will not be able to generate HTML reports")
-    endif()
-  endif()
 endif()
 
 feature_summary(WHAT ALL)
