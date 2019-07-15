@@ -163,7 +163,7 @@ RawImage MrwDecoder::decodeRawInternal() {
   if (packed)
     u.decode12BitRaw<Endianness::big>(raw_width, raw_height);
   else
-    u.decodeRawUnpacked<12, Endianness::big>(raw_width, raw_height);
+    u.decodeRawUnpackedBigEndian<12>(raw_width, raw_height);
 
   return mRaw;
 }

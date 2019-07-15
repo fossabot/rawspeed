@@ -257,7 +257,7 @@ void ArwDecoder::DecodeUncompressed(const TiffIFD* raw) {
                              mRaw);
 
   if (hints.has("sr2_format"))
-    u.decodeRawUnpacked<14, Endianness::big>(width, height);
+    u.decodeRawUnpackedBigEndian<14>(width, height);
   else {
     iPoint2D pos(0, 0);
     int bps = 16;

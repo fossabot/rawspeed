@@ -155,7 +155,7 @@ bool OrfDecoder::decodeUncompressed(const ByteStream& s, uint32_t w, uint32_t h,
     mRaw->createData();
     // FIXME: seems fishy
     if (s.getByteOrder() == getHostEndianness())
-      u.decodeRawUnpacked<12, Endianness::little>(w, h);
+      u.decode12BitRawUnpackedLeftAlignedLittleEndian(w, h);
     else
       u.decode12BitRawUnpackedLeftAlignedBigEndian(w, h);
     return true;

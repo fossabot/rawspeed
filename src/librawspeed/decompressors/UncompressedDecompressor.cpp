@@ -319,11 +319,29 @@ void UncompressedDecompressor::decode12BitRawUnpackedLeftAlignedBigEndian(
   }
 }
 
-template <int bits, Endianness e>
-void UncompressedDecompressor::decodeRawUnpacked(uint32_t w, uint32_t h) {
+void UncompressedDecompressor::decode12BitRawUnpackedLeftAlignedLittleEndian(
+    uint32_t w, uint32_t h) {
+  sanityCheck(w, &h, 2);
+
+  uint8_t* data = mRaw->getData();
+  uint32_t pitch = mRaw->pitch;
+  const uint8_t* in = input.getData(w * h * 2);
+
+  for (uint32_t y = 0; y < h; y++) {
+    auto* dest = reinterpret_cast<uint16_t*>(&data[y * pitch]);
+    for (uint32_t x = 0; x < w; x += 1, in += 2) {
+      uint32_t g1 = in[0];
+      uint32_t g2 = in[1];
+
+      dest[x] = (((g2 << 8) | g1) >> 4);
+    }
+  }
+}
+
+template <int bits>
+void UncompressedDecompressor::decodeRawUnpackedBigEndian(uint32_t w,
+                                                          uint32_t h) {
   static_assert(bits == 12 || bits == 14, "unhandled bitdepth");
-  static_assert(e == Endianness::little || e == Endianness::big,
-                "unknown endiannes");
 
   static constexpr const auto shift = 16 - bits;
   static constexpr const auto mask = (1 << (8 - shift)) - 1;
@@ -343,22 +361,16 @@ void UncompressedDecompressor::decodeRawUnpacked(uint32_t w, uint32_t h) {
       uint32_t g1 = in[0];
       uint32_t g2 = in[1];
 
-      if (e == Endianness::little)
-        dest[x] = ((g2 << 8) | g1) >> shift;
-      else
-        dest[x] = ((g1 & mask) << 8) | g2;
+      dest[x] = ((g1 & mask) << 8) | g2;
     }
   }
 }
 
 template void
-UncompressedDecompressor::decodeRawUnpacked<12, Endianness::little>(uint32_t w,
-                                                                    uint32_t h);
+UncompressedDecompressor::decodeRawUnpackedBigEndian<12>(uint32_t w,
+                                                         uint32_t h);
 template void
-UncompressedDecompressor::decodeRawUnpacked<12, Endianness::big>(uint32_t w,
-                                                                 uint32_t h);
-template void
-UncompressedDecompressor::decodeRawUnpacked<14, Endianness::big>(uint32_t w,
-                                                                 uint32_t h);
+UncompressedDecompressor::decodeRawUnpackedBigEndian<14>(uint32_t w,
+                                                         uint32_t h);
 
 } // namespace rawspeed
