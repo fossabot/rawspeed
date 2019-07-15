@@ -100,7 +100,10 @@ RawImage ArwDecoder::decodeSRF(const TiffIFD* raw) {
 
   UncompressedDecompressor u(
       ByteStream(DataBuffer(di.getSubView(0, len), Endianness::little)), mRaw);
-  u.decodeRawUnpacked<16, Endianness::big>(width, height);
+  iPoint2D pos(0, 0);
+  int bps = 16;
+  BitOrder order = BitOrder_MSB;
+  u.readUncompressedRaw(mRaw->dim, pos, width * bps / 8, bps, order);
 
   return mRaw;
 }
