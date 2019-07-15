@@ -186,7 +186,7 @@ void UncompressedDecompressor::readUncompressedRaw(const iPoint2D& size,
       }
       bits.skipBytes(skipBytes);
     }
-  } else {
+  } else if (BitOrder_LSB == order) {
     if (bitPerPixel == 16 && getHostEndianness() == Endianness::little) {
       copyPixels(&data[offset.x * sizeof(uint16_t) * cpp + y * outPitch],
                  outPitch, input.getData(inputPitchBytes * (h - y)),
@@ -209,6 +209,8 @@ void UncompressedDecompressor::readUncompressedRaw(const iPoint2D& size,
       }
       bits.skipBytes(skipBytes);
     }
+  } else {
+    ThrowRDE("Unexpected bit-order %u", order);
   }
 }
 
