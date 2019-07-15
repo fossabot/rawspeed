@@ -342,7 +342,7 @@ UncompressedDecompressor::decode12BitRawUnpackedLeftAligned<Endianness::big>(
 
 template <int bits, Endianness e>
 void UncompressedDecompressor::decodeRawUnpacked(uint32_t w, uint32_t h) {
-  static_assert(bits == 12 || bits == 14 || bits == 16, "unhandled bitdepth");
+  static_assert(bits == 12 || bits == 14, "unhandled bitdepth");
   static_assert(e == Endianness::little || e == Endianness::big,
                 "unknown endiannes");
 
@@ -351,7 +351,6 @@ void UncompressedDecompressor::decodeRawUnpacked(uint32_t w, uint32_t h) {
 
   static_assert((bits == 12 && mask == 0x0f) || bits != 12, "wrong mask");
   static_assert((bits == 14 && mask == 0x3f) || bits != 14, "wrong mask");
-  static_assert((bits == 16 && mask == 0xff) || bits != 16, "wrong mask");
 
   sanityCheck(w, &h, 2);
 
@@ -381,12 +380,6 @@ UncompressedDecompressor::decodeRawUnpacked<12, Endianness::big>(uint32_t w,
                                                                  uint32_t h);
 template void
 UncompressedDecompressor::decodeRawUnpacked<14, Endianness::big>(uint32_t w,
-                                                                 uint32_t h);
-template void
-UncompressedDecompressor::decodeRawUnpacked<16, Endianness::little>(uint32_t w,
-                                                                    uint32_t h);
-template void
-UncompressedDecompressor::decodeRawUnpacked<16, Endianness::big>(uint32_t w,
                                                                  uint32_t h);
 
 } // namespace rawspeed

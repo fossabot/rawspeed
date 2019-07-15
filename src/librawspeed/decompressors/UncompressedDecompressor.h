@@ -116,11 +116,5 @@ UncompressedDecompressor::decodeRawUnpacked<12, Endianness::big>(uint32_t w,
 extern template void
 UncompressedDecompressor::decodeRawUnpacked<14, Endianness::big>(uint32_t w,
                                                                  uint32_t h);
-extern template void
-UncompressedDecompressor::decodeRawUnpacked<16, Endianness::little>(uint32_t w,
-                                                                    uint32_t h);
-extern template void
-UncompressedDecompressor::decodeRawUnpacked<16, Endianness::big>(uint32_t w,
-                                                                 uint32_t h);
 
 } // namespace rawspeed
