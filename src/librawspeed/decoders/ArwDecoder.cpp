@@ -256,17 +256,14 @@ void ArwDecoder::DecodeUncompressed(const TiffIFD* raw) {
   UncompressedDecompressor u(ByteStream(DataBuffer(buf, Endianness::little)),
                              mRaw);
 
-  if (hints.has("sr2_format")) {
-    iPoint2D pos(0, 0);
-    int bps = 16;
-    BitOrder order = BitOrder_MSB;
-    u.readUncompressedRaw(mRaw->dim, pos, width * bps / 8, bps, order);
-  } else {
-    iPoint2D pos(0, 0);
-    int bps = 16;
-    BitOrder order = BitOrder_LSB;
-    u.readUncompressedRaw(mRaw->dim, pos, width * bps / 8, bps, order);
-  }
+  iPoint2D pos(0, 0);
+  int bps = 16;
+  BitOrder order = BitOrder_LSB;
+
+  if (hints.has("sr2_format"))
+    order = BitOrder_MSB;
+
+  u.readUncompressedRaw(mRaw->dim, pos, width * bps / 8, bps, order);
 }
 
 void ArwDecoder::DecodeARW2(const ByteStream& input, uint32_t w, uint32_t h,
