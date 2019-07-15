@@ -128,10 +128,12 @@ RawImage MosDecoder::decodeRawInternal() {
     const Endianness endianness =
         getTiffByteOrder(ByteStream(DataBuffer(*mFile, Endianness::little)), 0);
 
-    if (Endianness::big == endianness)
-      u.decodeRawUnpacked<16, Endianness::big>(width, height);
-    else
-      u.decodeRawUnpacked<16, Endianness::little>(width, height);
+    BitOrder order =
+        endianness == Endianness::big ? BitOrder_MSB : BitOrder_LSB;
+
+    iPoint2D pos(0, 0);
+    int bps = 16;
+    u.readUncompressedRaw(mRaw->dim, pos, width * bps / 8, bps, order);
   }
   else if (99 == compression || 7 == compression) {
     ThrowRDE("Leaf LJpeg not yet supported");
