@@ -300,11 +300,8 @@ template void
 UncompressedDecompressor::decode12BitRaw<Endianness::big, false, true>(
     uint32_t w, uint32_t h);
 
-template <Endianness e>
-void UncompressedDecompressor::decode12BitRawUnpackedLeftAligned(uint32_t w,
-                                                                 uint32_t h) {
-  static_assert(e == Endianness::big, "unknown endiannes");
-
+void UncompressedDecompressor::decode12BitRawUnpackedLeftAlignedBigEndian(
+    uint32_t w, uint32_t h) {
   sanityCheck(w, &h, 2);
 
   uint8_t* data = mRaw->getData();
@@ -317,15 +314,10 @@ void UncompressedDecompressor::decode12BitRawUnpackedLeftAligned(uint32_t w,
       uint32_t g1 = in[0];
       uint32_t g2 = in[1];
 
-      if (e == Endianness::big)
-        dest[x] = (((g1 << 8) | (g2 & 0xf0)) >> 4);
+      dest[x] = (((g1 << 8) | (g2 & 0xf0)) >> 4);
     }
   }
 }
-
-template void
-UncompressedDecompressor::decode12BitRawUnpackedLeftAligned<Endianness::big>(
-    uint32_t w, uint32_t h);
 
 template <int bits, Endianness e>
 void UncompressedDecompressor::decodeRawUnpacked(uint32_t w, uint32_t h) {

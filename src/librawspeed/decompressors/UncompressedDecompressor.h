@@ -78,8 +78,7 @@ public:
 
   /* Faster version for reading unpacked 12 bit data that is left aligned
    * (needs >> 4 shift) */
-  template <Endianness e>
-  void decode12BitRawUnpackedLeftAligned(uint32_t w, uint32_t h);
+  void decode12BitRawUnpackedLeftAlignedBigEndian(uint32_t w, uint32_t h);
 
   /* Faster version for reading unpacked data */
   template <int bits, Endianness e>
@@ -105,10 +104,6 @@ UncompressedDecompressor::decode12BitRaw<Endianness::little, false, true>(
     uint32_t w, uint32_t h);
 extern template void
 UncompressedDecompressor::decode12BitRaw<Endianness::big, false, true>(
-    uint32_t w, uint32_t h);
-
-extern template void
-UncompressedDecompressor::decode12BitRawUnpackedLeftAligned<Endianness::big>(
     uint32_t w, uint32_t h);
 
 extern template void
