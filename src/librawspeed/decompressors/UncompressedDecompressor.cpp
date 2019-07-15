@@ -338,39 +338,4 @@ void UncompressedDecompressor::decode12BitRawUnpackedLeftAlignedLittleEndian(
   }
 }
 
-template <int bits>
-void UncompressedDecompressor::decodeRawUnpackedBigEndian(uint32_t w,
-                                                          uint32_t h) {
-  static_assert(bits == 12 || bits == 14, "unhandled bitdepth");
-
-  static constexpr const auto shift = 16 - bits;
-  static constexpr const auto mask = (1 << (8 - shift)) - 1;
-
-  static_assert((bits == 12 && mask == 0x0f) || bits != 12, "wrong mask");
-  static_assert((bits == 14 && mask == 0x3f) || bits != 14, "wrong mask");
-
-  sanityCheck(w, &h, 2);
-
-  uint8_t* data = mRaw->getData();
-  uint32_t pitch = mRaw->pitch;
-  const uint8_t* in = input.getData(w * h * 2);
-
-  for (uint32_t y = 0; y < h; y++) {
-    auto* dest = reinterpret_cast<uint16_t*>(&data[y * pitch]);
-    for (uint32_t x = 0; x < w; x += 1, in += 2) {
-      uint32_t g1 = in[0];
-      uint32_t g2 = in[1];
-
-      dest[x] = ((g1 & mask) << 8) | g2;
-    }
-  }
-}
-
-template void
-UncompressedDecompressor::decodeRawUnpackedBigEndian<12>(uint32_t w,
-                                                         uint32_t h);
-template void
-UncompressedDecompressor::decodeRawUnpackedBigEndian<14>(uint32_t w,
-                                                         uint32_t h);
-
 } // namespace rawspeed
