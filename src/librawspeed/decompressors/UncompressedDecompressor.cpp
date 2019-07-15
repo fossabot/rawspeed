@@ -92,6 +92,28 @@ int UncompressedDecompressor::bytesPerLine(int w, bool skips) {
   return perline;
 }
 
+template <typename BIT_PUMP>
+void UncompressedDecompressor::readPacked(const iPoint2D& size,
+                                          const iPoint2D& offset,
+                                          int bitPerPixel, uint32_t skipBytes) {
+  BIT_PUMP bits(input);
+  uint8_t* data = mRaw->getData();
+
+  uint32_t cpp = mRaw->getCpp();
+  uint32_t w = size.x * cpp;
+  uint32_t h = size.y;
+  uint32_t outPitch = mRaw->pitch;
+  for (uint32_t y = offset.y; y < h; y++) {
+    auto* dest = reinterpret_cast<uint16_t*>(
+        &data[offset.x * sizeof(uint16_t) * cpp + y * outPitch]);
+    for (uint32_t x = 0; x < w; x++) {
+      uint32_t b = bits.getBits(bitPerPixel);
+      dest[x] = b;
+    }
+    bits.skipBytes(skipBytes);
+  }
+}
+
 void UncompressedDecompressor::readUncompressedRaw(const iPoint2D& size,
                                                    const iPoint2D& offset,
                                                    int inputPitchBytes,
@@ -150,42 +172,15 @@ void UncompressedDecompressor::readUncompressedRaw(const iPoint2D& size,
     return;
   }
 
+  iPoint2D newSize(size.x, h);
+
   if (BitOrder_MSB == order) {
-    BitPumpMSB bits(input);
-    w *= cpp;
-    for (; y < h; y++) {
-      auto* dest = reinterpret_cast<uint16_t*>(
-          &data[offset.x * sizeof(uint16_t) * cpp + y * outPitch]);
-      for (uint32_t x = 0; x < w; x++) {
-        uint32_t b = bits.getBits(bitPerPixel);
-        dest[x] = b;
-      }
-      bits.skipBytes(skipBytes);
-    }
+    readPacked<BitPumpMSB>(newSize, offset, bitPerPixel, skipBytes);
   } else if (BitOrder_MSB16 == order) {
     BitPumpMSB16 bits(input);
-    w *= cpp;
-    for (; y < h; y++) {
-      auto* dest = reinterpret_cast<uint16_t*>(
-          &data[offset.x * sizeof(uint16_t) * cpp + y * outPitch]);
-      for (uint32_t x = 0; x < w; x++) {
-        uint32_t b = bits.getBits(bitPerPixel);
-        dest[x] = b;
-      }
-      bits.skipBytes(skipBytes);
-    }
+    readPacked<BitPumpMSB16>(newSize, offset, bitPerPixel, skipBytes);
   } else if (BitOrder_MSB32 == order) {
-    BitPumpMSB32 bits(input);
-    w *= cpp;
-    for (; y < h; y++) {
-      auto* dest = reinterpret_cast<uint16_t*>(
-          &data[offset.x * sizeof(uint16_t) * cpp + y * outPitch]);
-      for (uint32_t x = 0; x < w; x++) {
-        uint32_t b = bits.getBits(bitPerPixel);
-        dest[x] = b;
-      }
-      bits.skipBytes(skipBytes);
-    }
+    readPacked<BitPumpMSB32>(newSize, offset, bitPerPixel, skipBytes);
   } else if (BitOrder_LSB == order) {
     if (bitPerPixel == 16 && getHostEndianness() == Endianness::little) {
       copyPixels(&data[offset.x * sizeof(uint16_t) * cpp + y * outPitch],
@@ -198,17 +193,7 @@ void UncompressedDecompressor::readUncompressedRaw(const iPoint2D& size,
       decode12BitRaw<Endianness::little>(w, h);
       return;
     }
-    BitPumpLSB bits(input);
-    w *= cpp;
-    for (; y < h; y++) {
-      auto* dest = reinterpret_cast<uint16_t*>(
-          &data[offset.x * sizeof(uint16_t) + y * outPitch]);
-      for (uint32_t x = 0; x < w; x++) {
-        uint32_t b = bits.getBits(bitPerPixel);
-        dest[x] = b;
-      }
-      bits.skipBytes(skipBytes);
-    }
+    readPacked<BitPumpLSB>(newSize, offset, bitPerPixel, skipBytes);
   } else {
     ThrowRDE("Unexpected bit-order %u", order);
   }

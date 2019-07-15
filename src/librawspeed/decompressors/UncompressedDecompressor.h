@@ -47,6 +47,10 @@ class UncompressedDecompressor final : public AbstractDecompressor {
   // for special packed formats
   int bytesPerLine(int w, bool skips);
 
+  template <typename BIT_PUMP>
+  void readPacked(const iPoint2D& size, const iPoint2D& offset, int bitPerPixel,
+                  uint32_t skipBytes);
+
 public:
   UncompressedDecompressor(ByteStream input_, const RawImage& img)
       : input(std::move(input_)), mRaw(img) {}
