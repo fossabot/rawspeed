@@ -188,11 +188,6 @@ void UncompressedDecompressor::readUncompressedRaw(const iPoint2D& size,
                  inputPitchBytes, w * mRaw->getBpp(), h - y);
       return;
     }
-    if (bitPerPixel == 12 && static_cast<int>(w) == inputPitchBytes * 8 / 12 &&
-        getHostEndianness() == Endianness::little) {
-      decode12BitRaw<Endianness::little>(w, h);
-      return;
-    }
     readPacked<BitPumpLSB>(newSize, offset, bitPerPixel, skipBytes);
   } else {
     ThrowRDE("Unexpected bit-order %u", order);
