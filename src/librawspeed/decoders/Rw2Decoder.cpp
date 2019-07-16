@@ -93,7 +93,7 @@ RawImage Rw2Decoder::decodeRawInternal() {
     if (size >= width*height*2) {
       // It's completely unpacked little-endian
       mRaw->createData();
-      u.decode12BitRawUnpackedLeftAlignedLittleEndian(width, height);
+      u.decode12BitRawUnpackedLeftAligned<Endianness::little>(width, height);
     } else if (size >= width*height*3/2) {
       // It's a packed format
       mRaw->createData();

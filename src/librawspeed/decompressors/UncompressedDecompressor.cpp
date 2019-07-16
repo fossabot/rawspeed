@@ -300,8 +300,9 @@ template void
 UncompressedDecompressor::decode12BitRaw<Endianness::big, false, true>(
     uint32_t w, uint32_t h);
 
-void UncompressedDecompressor::decode12BitRawUnpackedLeftAlignedBigEndian(
-    uint32_t w, uint32_t h) {
+template <Endianness e>
+void UncompressedDecompressor::decode12BitRawUnpackedLeftAligned(uint32_t w,
+                                                                 uint32_t h) {
   sanityCheck(w, &h, 2);
 
   uint8_t* data = mRaw->getData();
@@ -314,28 +315,19 @@ void UncompressedDecompressor::decode12BitRawUnpackedLeftAlignedBigEndian(
       uint32_t g1 = in[0];
       uint32_t g2 = in[1];
 
-      dest[x] = (((g1 << 8) | (g2 & 0xf0)) >> 4);
+      if (e == Endianness::little)
+        dest[x] = (((g2 << 8) | g1) >> 4);
+      else
+        dest[x] = (((g1 << 8) | g2) >> 4);
     }
   }
 }
 
-void UncompressedDecompressor::decode12BitRawUnpackedLeftAlignedLittleEndian(
-    uint32_t w, uint32_t h) {
-  sanityCheck(w, &h, 2);
-
-  uint8_t* data = mRaw->getData();
-  uint32_t pitch = mRaw->pitch;
-  const uint8_t* in = input.getData(w * h * 2);
-
-  for (uint32_t y = 0; y < h; y++) {
-    auto* dest = reinterpret_cast<uint16_t*>(&data[y * pitch]);
-    for (uint32_t x = 0; x < w; x += 1, in += 2) {
-      uint32_t g1 = in[0];
-      uint32_t g2 = in[1];
-
-      dest[x] = (((g2 << 8) | g1) >> 4);
-    }
-  }
-}
+template void
+UncompressedDecompressor::decode12BitRawUnpackedLeftAligned<Endianness::little>(
+    uint32_t w, uint32_t h);
+template void
+UncompressedDecompressor::decode12BitRawUnpackedLeftAligned<Endianness::big>(
+    uint32_t w, uint32_t h);
 
 } // namespace rawspeed
