@@ -160,17 +160,9 @@ RawImage MrwDecoder::decodeRawInternal() {
   ByteStream bs(db);
   UncompressedDecompressor u(bs, mRaw);
 
-  if (packed) {
-    iPoint2D pos(0, 0);
-    int bps = 12;
-    BitOrder order = BitOrder_MSB;
-    u.readUncompressedRaw(mRaw->dim, pos, raw_width * bps / 8, bps, order);
-  } else {
-    iPoint2D pos(0, 0);
-    int bps = 16;
-    BitOrder order = BitOrder_MSB;
-    u.readUncompressedRaw(mRaw->dim, pos, raw_width * bps / 8, bps, order);
-  }
+  iPoint2D pos(0, 0);
+  BitOrder order = BitOrder_MSB;
+  u.readUncompressedRaw(mRaw->dim, pos, raw_width * bpp / 8, bpp, order);
 
   return mRaw;
 }
