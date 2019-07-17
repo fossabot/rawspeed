@@ -66,10 +66,6 @@ public:
                            int inputPitchBytes, int bitPerPixel,
                            BitOrder order);
 
-  /* Faster versions for unpacking 8 bit data */
-  template <bool uncorrectedRawValues>
-  void decode8BitRaw(uint32_t w, uint32_t h);
-
   /* Faster version for unpacking 12 bit data */
   /* interlaced - is data with interlaced lines ? */
   /* skips - is there control byte every 10 pixels ? */
@@ -81,11 +77,6 @@ public:
   template <Endianness e>
   void decode12BitRawUnpackedLeftAligned(uint32_t w, uint32_t h);
 };
-
-extern template void UncompressedDecompressor::decode8BitRaw<false>(uint32_t w,
-                                                                    uint32_t h);
-extern template void UncompressedDecompressor::decode8BitRaw<true>(uint32_t w,
-                                                                   uint32_t h);
 
 extern template void
 UncompressedDecompressor::decode12BitRaw<Endianness::big, true, false>(

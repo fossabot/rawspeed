@@ -60,14 +60,22 @@ RawImage DcsDecoder::decodeRawInternal() {
 
   RawImageCurveGuard curveHandler(&mRaw, table, uncorrectedRawValues);
 
-  UncompressedDecompressor u(
-      ByteStream(DataBuffer(mFile->getSubView(off, c2), Endianness::little)),
-      mRaw);
+  // This raw is uncompressed, 1 byte (8 bits) per pixel.
 
-  if (uncorrectedRawValues)
-    u.decode8BitRaw<true>(width, height);
-  else
-    u.decode8BitRaw<false>(width, height);
+  uint8_t* data = mRaw->getData();
+  uint32_t pitch = mRaw->pitch;
+  const uint8_t* in = mFile->getSubView(off, c2).getData(0, width * height);
+  uint32_t random = 0;
+  for (uint32_t y = 0; y < height; y++) {
+    auto* dest = reinterpret_cast<uint16_t*>(&data[y * pitch]);
+    for (uint32_t x = 0; x < width; x++) {
+      if (uncorrectedRawValues)
+        dest[x] = *in;
+      else
+        mRaw->setWithLookUp(*in, reinterpret_cast<uint8_t*>(&dest[x]), &random);
+      in++;
+    }
+  }
 
   return mRaw;
 }

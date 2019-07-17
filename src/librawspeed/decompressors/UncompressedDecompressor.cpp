@@ -194,31 +194,6 @@ void UncompressedDecompressor::readUncompressedRaw(const iPoint2D& size,
   }
 }
 
-template <bool uncorrectedRawValues>
-void UncompressedDecompressor::decode8BitRaw(uint32_t w, uint32_t h) {
-  sanityCheck(w, &h, 1);
-
-  uint8_t* data = mRaw->getData();
-  uint32_t pitch = mRaw->pitch;
-  const uint8_t* in = input.getData(w * h);
-  uint32_t random = 0;
-  for (uint32_t y = 0; y < h; y++) {
-    auto* dest = reinterpret_cast<uint16_t*>(&data[y * pitch]);
-    for (uint32_t x = 0; x < w; x++) {
-      if (uncorrectedRawValues)
-        dest[x] = *in;
-      else
-        mRaw->setWithLookUp(*in, reinterpret_cast<uint8_t*>(&dest[x]), &random);
-      in++;
-    }
-  }
-}
-
-template void UncompressedDecompressor::decode8BitRaw<false>(uint32_t w,
-                                                             uint32_t h);
-template void UncompressedDecompressor::decode8BitRaw<true>(uint32_t w,
-                                                            uint32_t h);
-
 template <Endianness e, bool interlaced, bool skips>
 void UncompressedDecompressor::decode12BitRaw(uint32_t w, uint32_t h) {
   static constexpr const auto bits = 12;
