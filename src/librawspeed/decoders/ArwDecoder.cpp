@@ -280,8 +280,10 @@ void ArwDecoder::DecodeARW2(const ByteStream& input, uint32_t w, uint32_t h,
     mRaw->createData();
     UncompressedDecompressor u(
         ByteStream(DataBuffer(input, Endianness::little)), mRaw);
-    u.decode12BitRaw<Endianness::little>(w, h);
-
+    iPoint2D pos(0, 0);
+    int bps = 12;
+    BitOrder order = BitOrder_LSB;
+    u.readUncompressedRaw(mRaw->dim, pos, w * bps / 8, bps, order);
     // Shift scales, since black and white are the same as compressed precision
     mShiftDownScale = 2;
     return;
