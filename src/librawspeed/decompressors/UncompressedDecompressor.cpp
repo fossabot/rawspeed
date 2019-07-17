@@ -226,6 +226,13 @@ void UncompressedDecompressor::decode12BitRaw(uint32_t w, uint32_t h) {
   static_assert(e == Endianness::little || e == Endianness::big,
                 "unknown endiannes");
 
+  static_assert(interlaced || skips, "Use readUncompressedRaw() then.");
+  static_assert(e == Endianness::big || (!interlaced && skips),
+                "For little-endian only the variant with skips exists");
+  static_assert(e == Endianness::little || (interlaced != skips),
+                "For big-endian both vairiants exist, but there are no case "
+                "when both interlaced and skips is on.");
+
   static constexpr const auto shift = 16 - bits;
   static constexpr const auto pack = 8 - shift;
   static constexpr const auto mask = (1 << pack) - 1;
@@ -279,12 +286,6 @@ void UncompressedDecompressor::decode12BitRaw(uint32_t w, uint32_t h) {
   input.skipBytes(input.getRemainSize());
 }
 
-template void
-UncompressedDecompressor::decode12BitRaw<Endianness::little, false, false>(
-    uint32_t w, uint32_t h);
-template void
-UncompressedDecompressor::decode12BitRaw<Endianness::big, false, false>(
-    uint32_t w, uint32_t h);
 template void
 UncompressedDecompressor::decode12BitRaw<Endianness::big, true, false>(
     uint32_t w, uint32_t h);
