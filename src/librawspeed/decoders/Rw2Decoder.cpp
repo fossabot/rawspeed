@@ -20,6 +20,7 @@
 */
 
 #include "decoders/Rw2Decoder.h"
+#include "common/Array2DRef.h"                      // for Array2DRef
 #include "common/Common.h"                          // for writeLog, uint32_t
 #include "common/Point.h"                           // for iPoint2D
 #include "decoders/RawDecoderException.h"           // for ThrowRDE
@@ -90,11 +91,22 @@ RawImage Rw2Decoder::decodeRawInternal() {
         ByteStream(DataBuffer(mFile->getSubView(offset), Endianness::little)),
         mRaw);
 
-    if (size >= width*height*2) {
+    if (size >= width * height * 2) {
       // It's completely unpacked little-endian
       mRaw->createData();
-      u.decode12BitRawUnpackedLeftAligned<Endianness::little>(width, height);
-    } else if (size >= width*height*3/2) {
+      iPoint2D pos = {0, 0};
+      // The image is stored unpacked in 16 bits,
+      // but the padding is in low bits, not high ones...
+      int bpp = 16;
+      u.readUncompressedRaw(mRaw->dim, pos, width * bpp / 8, bpp, BitOrder_LSB);
+      const Array2DRef<uint16_t> out(
+          reinterpret_cast<uint16_t*>(mRaw->getData()), mRaw->dim.x,
+          mRaw->dim.y, mRaw->pitch / sizeof(uint16_t));
+      for (int row = 0; row < out.height; ++row) {
+        for (int col = 0; col < out.width; ++col)
+          out(col, row) >>= (16 - 12);
+      }
+    } else if (size >= width * height * 3 / 2) {
       // It's a packed format
       mRaw->createData();
       u.decode12BitRaw<Endianness::little, false, true>(width, height);
