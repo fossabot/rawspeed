@@ -21,6 +21,7 @@
 */
 
 #include "decoders/OrfDecoder.h"
+#include "common/Array2DRef.h"                      // for Array2DRef
 #include "common/Common.h"                          // for uint32_t, uint8_t
 #include "common/NORangesSet.h"                     // for set
 #include "common/Point.h"                           // for iPoint2D
@@ -153,11 +154,20 @@ bool OrfDecoder::decodeUncompressed(const ByteStream& s, uint32_t w, uint32_t h,
 
   if (size == w * h * 2) { // We're in an unpacked raw
     mRaw->createData();
-    // FIXME: seems fishy
-    if (s.getByteOrder() == getHostEndianness())
-      u.decode12BitRawUnpackedLeftAligned<Endianness::little>(w, h);
-    else
-      u.decode12BitRawUnpackedLeftAligned<Endianness::big>(w, h);
+    iPoint2D pos = {0, 0};
+    // The image is stored unpacked in 16 bits,
+    // but the padding is in low bits, not high ones...
+    int bpp = 16;
+    BitOrder order =
+        s.getByteOrder() == Endianness::little ? BitOrder_LSB : BitOrder_MSB;
+    u.readUncompressedRaw(mRaw->dim, pos, w * bpp / 8, bpp, order);
+    const Array2DRef<uint16_t> out(reinterpret_cast<uint16_t*>(mRaw->getData()),
+                                   mRaw->dim.x, mRaw->dim.y,
+                                   mRaw->pitch / sizeof(uint16_t));
+    for (int row = 0; row < out.height; ++row) {
+      for (int col = 0; col < out.width; ++col)
+        out(col, row) >>= (16 - 12);
+    }
     return true;
   }
 
