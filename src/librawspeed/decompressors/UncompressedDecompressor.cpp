@@ -225,14 +225,18 @@ void UncompressedDecompressor::decode12BitRaw(uint32_t w, uint32_t h) {
 
   // FIXME: maybe check size of interlaced data?
   const uint8_t* in = input.peekData(perline * h);
-  uint32_t half = (h + 1) >> 1;
+  uint32_t halfHeight = roundUpDivision(h, 2);
   for (uint32_t row = 0; row < h; row++) {
-    uint32_t y = !interlaced ? row : row % half * 2 + row / half;
+    // In interlaced raw, we first process all even rows, and then all odd rows.
+    uint32_t y = !interlaced ? row : row % halfHeight * 2 + row / halfHeight;
     auto* dest = reinterpret_cast<uint16_t*>(&data[y * pitch]);
 
     if (interlaced && y == 1) {
-      // The second field starts at a 2048 byte alignment
-      const uint32_t offset = ((half * w * 3 / 2 >> 11) + 1) << 11;
+      // The first input byte for first odd row is aligned to 2048 byte,
+      // so we may need to skip some padding.
+      uint32_t inputBytesPerRow = (w * 12) / 8;
+      uint32_t inputBytesForHalfOfImage = halfHeight * inputBytesPerRow;
+      const uint32_t offset = roundUp(inputBytesForHalfOfImage, 2048);
       input.skipBytes(offset);
       in = input.peekData(perline * (h - row));
     }
