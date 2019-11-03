@@ -83,7 +83,7 @@ void SamsungV0Decompressor::computeStripes(ByteStream bso, ByteStream bsr) {
   assert(stripes.size() == height);
 }
 
-void SamsungV0Decompressor::decompress() const {
+void SamsungV0Decompressor::decompress() {
   for (int row = 0; row < mRaw->dim.y; row++)
     decompressStrip(row, stripes[row]);
 
@@ -103,14 +103,30 @@ SamsungV0Decompressor::getDiff(BitPumpMSB32* pump, uint32_t len) {
   return signExtend(pump->getBits(len), len);
 }
 
-void SamsungV0Decompressor::decompressStrip(int row,
-                                            const ByteStream& bs) const {
+inline __attribute__((always_inline)) std::array<int16_t, 16>
+SamsungV0Decompressor::decodeDifferences(BitPumpMSB32* pump) {
+  std::array<int16_t, 16> diffs;
+  // First, decode all differences. They are stored interlaced,
+  // first for even pixels then for odd pixels.
+  for (int c = 0; c < 16; c += 2) {
+    int b = len[c >> 3];
+    int16_t diff = getDiff(pump, b);
+    diffs[c] = diff;
+  }
+  for (int c = 1; c < 16; c += 2) {
+    int b = len[2 | (c >> 3)];
+    int16_t diff = getDiff(pump, b);
+    diffs[c] = diff;
+  }
+  return diffs;
+}
+
+void SamsungV0Decompressor::decompressStrip(int row, const ByteStream& bs) {
   const Array2DRef<uint16_t> out(mRaw->getU16DataAsUncroppedArray2DRef());
   assert(out.width > 0);
 
   BitPumpMSB32 bits(bs);
 
-  std::array<int, 4> len;
   for (int& i : len)
     i = row < 2 ? 7 : 4;
 
@@ -145,27 +161,14 @@ void SamsungV0Decompressor::decompressStrip(int row,
         ThrowRDE("Invalid bit length - not in [0, 16] range.");
     }
 
+    const std::array<int16_t, 16> diffs = decodeDifferences(&bits);
+
     if (dir) {
       if (row < 2)
         ThrowRDE("Upward prediction for the first two rows. Raw corrupt");
 
       if (col + 16 >= out.width)
         ThrowRDE("Upward prediction for the last block of pixels. Raw corrupt");
-
-      std::array<int16_t, 16> diffs;
-
-      // First, decode all differences. They are stored interlaced,
-      // first for even pixels then for odd pixels.
-      for (int c = 0; c < 16; c += 2) {
-        int b = len[c >> 3];
-        int16_t diff = getDiff(&bits, b);
-        diffs[c] = diff;
-      }
-      for (int c = 1; c < 16; c += 2) {
-        int b = len[2 | (c >> 3)];
-        int16_t diff = getDiff(&bits, b);
-        diffs[c] = diff;
-      }
 
       // Upward prediction
       // Now, actually apply the differences.
@@ -178,21 +181,6 @@ void SamsungV0Decompressor::decompressStrip(int row,
         out(row, col + c) = diffs[c] + out(row - 2, col + c);
       }
     } else {
-      std::array<int16_t, 16> diffs;
-
-      // First, decode all differences. They are stored interlaced,
-      // first for even pixels then for odd pixels.
-      for (int c = 0; c < 16; c += 2) {
-        int b = len[c >> 3];
-        int16_t diff = getDiff(&bits, b);
-        diffs[c] = diff;
-      }
-      for (int c = 1; c < 16; c += 2) {
-        int b = len[2 | (c >> 3)];
-        int16_t diff = getDiff(&bits, b);
-        diffs[c] = diff;
-      }
-
       // Now, actually apply the differences.
       // Left to right prediction. First we decode even pixels
       int pred_left = col != 0 ? out(row, col - 2) : 128;
