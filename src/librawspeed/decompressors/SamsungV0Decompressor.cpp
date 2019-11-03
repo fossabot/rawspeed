@@ -95,11 +95,12 @@ void SamsungV0Decompressor::decompress() const {
   }
 }
 
-int32_t SamsungV0Decompressor::calcAdj(BitPumpMSB32* bits, int b) {
-  int32_t adj = 0;
-  if (b)
-    adj = (static_cast<int32_t>(bits->getBits(b)) << (32 - b) >> (32 - b));
-  return adj;
+inline __attribute__((always_inline)) int16_t
+SamsungV0Decompressor::getDiff(BitPumpMSB32* pump, uint32_t len) {
+  if (len == 0)
+    return 0;
+  assert(len <= 16 && "Difference occupies at most 16 bits.");
+  return signExtend(pump->getBits(len), len);
 }
 
 void SamsungV0Decompressor::decompressStrip(int row,
@@ -140,10 +141,8 @@ void SamsungV0Decompressor::decompressStrip(int row,
         break;
       }
 
-      if (len[i] < 0)
-        ThrowRDE("Bit length less than 0.");
-      if (len[i] > 16)
-        ThrowRDE("Bit Length more than 16.");
+      if (len[i] < 0 || len[i] > 16)
+        ThrowRDE("Invalid bit length - not in [0, 16] range.");
     }
 
     if (dir) {
@@ -158,9 +157,9 @@ void SamsungV0Decompressor::decompressStrip(int row,
       // First we decode even pixels
       for (int c = 0; c < 16; c += 2) {
         int b = len[c >> 3];
-        int32_t adj = calcAdj(&bits, b);
+        int16_t diff = getDiff(&bits, b);
 
-        out(row, col + c) = adj + out(row - 1, col + c);
+        out(row, col + c) = diff + out(row - 1, col + c);
       }
 
       // Now we decode odd pixels
@@ -168,9 +167,9 @@ void SamsungV0Decompressor::decompressStrip(int row,
       // is beyond me, it will hurt compression a deal.
       for (int c = 1; c < 16; c += 2) {
         int b = len[2 | (c >> 3)];
-        int32_t adj = calcAdj(&bits, b);
+        int16_t diff = getDiff(&bits, b);
 
-        out(row, col + c) = adj + out(row - 2, col + c);
+        out(row, col + c) = diff + out(row - 2, col + c);
       }
     } else {
       // Left to right prediction
@@ -178,20 +177,20 @@ void SamsungV0Decompressor::decompressStrip(int row,
       int pred_left = col != 0 ? out(row, col - 2) : 128;
       for (int c = 0; c < 16; c += 2) {
         int b = len[c >> 3];
-        int32_t adj = calcAdj(&bits, b);
+        int16_t diff = getDiff(&bits, b);
 
         if (col + c < out.width)
-          out(row, col + c) = adj + pred_left;
+          out(row, col + c) = diff + pred_left;
       }
 
       // Now we decode odd pixels
       pred_left = col != 0 ? out(row, col - 1) : 128;
       for (int c = 1; c < 16; c += 2) {
         int b = len[2 | (c >> 3)];
-        int32_t adj = calcAdj(&bits, b);
+        int16_t diff = getDiff(&bits, b);
 
         if (col + c < out.width)
-          out(row, col + c) = adj + pred_left;
+          out(row, col + c) = diff + pred_left;
       }
     }
   }
