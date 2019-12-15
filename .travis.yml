@@ -97,8 +97,8 @@ jobs:
       directories:
         - '$HOME/$RPUU_DST'
   - os: osx
-    osx_image: xcode10
-    env: CC=cc CXX=c++ ECO="-DWITH_OPENMP=OFF"
+    osx_image: xcode11.2
+    env: CC=cc CXX=c++
   #- os: osx
   #  env: CC=cc CXX=c++ FLAVOR=Coverage
   - os: linux
