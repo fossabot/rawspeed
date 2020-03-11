@@ -22,70 +22,83 @@
 #include "rawspeedconfig.h" // for HAVE_OPENMP
 #include "decompressors/PanasonicDecompressorV6.h"
 #include "common/Array2DRef.h"            // for Array2DRef
-#include "common/Common.h"                // for rawspeed_get_number_of_pro...
+#include "common/Common.h"                // for rawspeed_get_numb...
 #include "common/Point.h"                 // for iPoint2D
-#include "common/RawImage.h"              // for RawImageData, RawImage
-#include "common/RawspeedException.h"     // for RawspeedException
+#include "common/RawImage.h"              // for RawImage, RawImag...
 #include "decoders/RawDecoderException.h" // for ThrowRDE
+#include "io/BitStream.h"                 // for BitStream, BitStr...
+#include "io/ByteStream.h"                // for ByteStream
+#include "io/Endianness.h"                // for getLE
+#include "io/IOException.h"               // for ThrowIOE
+#include <algorithm>                      // for min
 #include <array>                          // for array
 #include <cassert>                        // for assert
-#include <cstdint>                        // for uint16_t
-#include <string>                         // for string
-#include <utility>                        // for move
+#include <cstdint>                        // for uint8_t, uint16_t
+#include <cstring>                        // for memcpy
 
 namespace rawspeed {
 
 constexpr int PanasonicDecompressorV6::PixelsPerBlock;
 constexpr int PanasonicDecompressorV6::BytesPerBlock;
 
+class Buffer;
+
 namespace {
-struct pana_cs6_page_decoder {
-  std::array<uint16_t, 14> pixelbuffer;
-  unsigned char current = 0;
 
-  explicit pana_cs6_page_decoder(const ByteStream& bs) {
-    // The bit packing scheme here is actually just 128-bit little-endian int,
-    // that we consume from the high bits to low bits, with no padding.
-    // It is really tempting to refactor this using proper BitPump, but so far
-    // that results in disappointing performance.
+constexpr unsigned PanaV6BitPumpMCU = 4U;
 
-    // 14 bits
-    pixelbuffer[0] = (bs.peekByte(15) << 6) | (bs.peekByte(14) >> 2);
-    // 14 bits
-    pixelbuffer[1] = (((bs.peekByte(14) & 0x3) << 12) | (bs.peekByte(13) << 4) |
-                      (bs.peekByte(12) >> 4)) &
-                     0x3fff;
-    // 2 bits
-    pixelbuffer[2] = (bs.peekByte(12) >> 2) & 0x3;
-    // 10 bits
-    pixelbuffer[3] = ((bs.peekByte(12) & 0x3) << 8) | bs.peekByte(11);
-    // 10 bits
-    pixelbuffer[4] = (bs.peekByte(10) << 2) | (bs.peekByte(9) >> 6);
-    // 10 bits
-    pixelbuffer[5] = ((bs.peekByte(9) & 0x3f) << 4) | (bs.peekByte(8) >> 4);
-    // 2 bits
-    pixelbuffer[6] = (bs.peekByte(8) >> 2) & 0x3;
-    // 10 bits
-    pixelbuffer[7] = ((bs.peekByte(8) & 0x3) << 8) | bs.peekByte(7);
-    // 10 bits
-    pixelbuffer[8] = ((bs.peekByte(6) << 2) & 0x3fc) | (bs.peekByte(5) >> 6);
-    // 10 bits
-    pixelbuffer[9] = ((bs.peekByte(5) << 4) | (bs.peekByte(4) >> 4)) & 0x3ff;
-    // 2 bits
-    pixelbuffer[10] = (bs.peekByte(4) >> 2) & 0x3;
-    // 10 bits
-    pixelbuffer[11] = ((bs.peekByte(4) & 0x3) << 8) | bs.peekByte(3);
-    // 10 bits
-    pixelbuffer[12] =
-        (((bs.peekByte(2) << 2) & 0x3fc) | bs.peekByte(1) >> 6) & 0x3ff;
-    // 10 bits
-    pixelbuffer[13] = ((bs.peekByte(1) << 4) | (bs.peekByte(0) >> 4)) & 0x3ff;
-    // 4 padding bits
+struct BitStreamBackwardSequentialReplenisher final : BitStreamReplenisherBase {
+  explicit BitStreamBackwardSequentialReplenisher(const Buffer& input)
+      : BitStreamReplenisherBase(input) {}
+
+  inline void markNumBytesAsConsumed(size_type numBytes) { pos += numBytes; }
+
+  inline const uint8_t* getInput() {
+#if !defined(DEBUG)
+    // Do we have PanaV6BitPumpMCU or more bytes left in the input buffer?
+    // If so, then we can just read from said buffer.
+    if (pos + PanaV6BitPumpMCU <= size)
+      return data + (size - pos - PanaV6BitPumpMCU);
+#endif
+
+    // We have to use intermediate buffer, either because the input is running
+    // out of bytes, or because we want to enforce bounds checking.
+
+    // Note that in order to keep all fill-level invariants we must allow to
+    // over-read past-the-end a bit.
+    if (pos > size + PanaV6BitPumpMCU)
+      ThrowIOE("Buffer overflow read in BitStream");
+
+    tmp.fill(0);
+
+    // How many bytes are left in input buffer?
+    // Since pos can be past-the-end we need to carefully handle overflow.
+    size_type bytesRemaining = (pos < size) ? size - pos : 0;
+    // And if we are not at the end of the input, we may have more than we need.
+
+    memcpy(tmp.data(),
+           data + ((bytesRemaining > PanaV6BitPumpMCU)
+                       ? (bytesRemaining - PanaV6BitPumpMCU)
+                       : 0),
+           std::min(PanaV6BitPumpMCU, bytesRemaining));
+    return tmp.data();
   }
-
-  uint16_t nextpixel() { return pixelbuffer[current++]; }
 };
+
+struct PanaV6BitPumpTag;
+
 } // namespace
+
+using BitPumpPanaV6 = BitStream<PanaV6BitPumpTag, BitStreamCacheRightInLeftOut,
+                                BitStreamBackwardSequentialReplenisher>;
+
+template <>
+inline BitPumpPanaV6::size_type BitPumpPanaV6::fillCache(const uint8_t* input) {
+  static_assert(BitStreamCacheBase::MaxGetBits >= 32, "check implementation");
+
+  cache.push(getLE<uint32_t>(input), 32);
+  return 4;
+}
 
 PanasonicDecompressorV6::PanasonicDecompressorV6(const RawImage& img,
                                                  const ByteStream& input_)
@@ -120,8 +133,9 @@ PanasonicDecompressorV6::decompressBlock(ByteStream* rowInput, int row,
                                          int col) const noexcept {
   const Array2DRef<uint16_t> out(mRaw->getU16DataAsUncroppedArray2DRef());
 
-  pana_cs6_page_decoder page(
+  BitPumpPanaV6 pump(
       rowInput->getStream(PanasonicDecompressorV6::BytesPerBlock));
+  pump.fill(32);
 
   std::array<unsigned, 2> oddeven = {0, 0};
   std::array<unsigned, 2> nonzero = {0, 0};
@@ -130,13 +144,14 @@ PanasonicDecompressorV6::decompressBlock(ByteStream* rowInput, int row,
   for (int pix = 0; pix < PanasonicDecompressorV6::PixelsPerBlock;
        pix++, col++) {
     if (pix % 3 == 2) {
-      uint16_t base = page.nextpixel();
+      uint16_t base = pump.getBitsNoFill(2);
+      pump.fill(32);
       if (base == 3)
         base = 4;
       pixel_base = 0x200 << base;
       pmul = 1 << base;
     }
-    uint16_t epixel = page.nextpixel();
+    uint16_t epixel = pump.getBitsNoFill(pix < 2 ? 14 : 10);
     if (oddeven[pix % 2]) {
       epixel *= pmul;
       if (pixel_base < 0x2000 && nonzero[pix % 2] > pixel_base)
