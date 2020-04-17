@@ -58,7 +58,7 @@ struct BitStreamBackwardSequentialReplenisher final : BitStreamReplenisherBase {
     // Do we have PanaV6BitPumpMCU or more bytes left in the input buffer?
     // If so, then we can just read from said buffer.
     if (pos + PanaV6BitPumpMCU <= size)
-      return data + (size - pos - PanaV6BitPumpMCU);
+      return data + size;
 #endif
 
     // We have to use intermediate buffer, either because the input is running
@@ -73,14 +73,11 @@ struct BitStreamBackwardSequentialReplenisher final : BitStreamReplenisherBase {
 
     // How many bytes are left in input buffer?
     // Since pos can be past-the-end we need to carefully handle overflow.
-    size_type bytesRemaining = (pos < size) ? size - pos : 0;
+    size_type bytesRemaining = (size >= pos) ? size - pos : 0;
     // And if we are not at the end of the input, we may have more than we need.
+    bytesRemaining = std::min(PanaV6BitPumpMCU, bytesRemaining);
 
-    memcpy(tmp.data(),
-           data + ((bytesRemaining > PanaV6BitPumpMCU)
-                       ? (bytesRemaining - PanaV6BitPumpMCU)
-                       : 0),
-           std::min(PanaV6BitPumpMCU, bytesRemaining));
+    memcpy(tmp.data(), data + pos, bytesRemaining);
     return tmp.data();
   }
 };
@@ -96,7 +93,7 @@ template <>
 inline BitPumpPanaV6::size_type BitPumpPanaV6::fillCache(const uint8_t* input) {
   static_assert(BitStreamCacheBase::MaxGetBits >= 32, "check implementation");
 
-  cache.push(getLE<uint32_t>(input), 32);
+  cache.push(getByteSwapped<uint32_t>(input, /*bswap=*/false), 32);
   return 4;
 }
 
@@ -127,14 +124,28 @@ PanasonicDecompressorV6::PanasonicDecompressorV6(const RawImage& img,
   input = input_.peekStream(numBlocks, BytesPerBlock);
 }
 
-inline void __attribute__((always_inline))
+inline void
 // NOLINTNEXTLINE(bugprone-exception-escape): no exceptions will be thrown.
 PanasonicDecompressorV6::decompressBlock(ByteStream* rowInput, int row,
                                          int col) const noexcept {
   const Array2DRef<uint16_t> out(mRaw->getU16DataAsUncroppedArray2DRef());
 
-  BitPumpPanaV6 pump(
-      rowInput->getStream(PanasonicDecompressorV6::BytesPerBlock));
+  const std::array<uint8_t, PanasonicDecompressorV6::BytesPerBlock> tmp =
+      [rowInput]() {
+        ByteStream bs =
+            rowInput->getStream(PanasonicDecompressorV6::BytesPerBlock);
+        std::array<uint8_t, PanasonicDecompressorV6::BytesPerBlock> inv;
+        for (int byte = 0; byte != PanasonicDecompressorV6::BytesPerBlock;
+             byte += sizeof(uint32_t)) {
+          uint32_t val = bs.getU32();
+          memcpy(&inv[PanasonicDecompressorV6::BytesPerBlock -
+                      sizeof(uint32_t) - byte],
+                 &val, sizeof(val));
+        }
+        return inv;
+      }();
+
+  BitPumpPanaV6 pump(Buffer(tmp.data(), 16));
   pump.fill(32);
 
   std::array<unsigned, 2> oddeven = {0, 0};

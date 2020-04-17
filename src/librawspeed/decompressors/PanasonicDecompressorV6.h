@@ -34,7 +34,7 @@ class PanasonicDecompressorV6 final : public AbstractDecompressor {
   static constexpr int PixelsPerBlock = 11;
   static constexpr int BytesPerBlock = 16;
 
-  inline void __attribute__((always_inline))
+  inline void
   // NOLINTNEXTLINE(bugprone-exception-escape): no exceptions will be thrown.
   decompressBlock(ByteStream* rowInput, int row, int col) const noexcept;
 
