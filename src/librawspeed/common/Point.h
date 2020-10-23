@@ -22,7 +22,6 @@
 #pragma once
 
 #include <algorithm>   // for max, min
-#include <cstddef>     // for size_t
 #include <type_traits> // for make_signed, make_signed<>::type
 
 namespace rawspeed {
@@ -30,7 +29,7 @@ namespace rawspeed {
 class iPoint2D {
 public:
   using value_type = int;
-  using area_type = size_t;
+  using area_type = unsigned long long int;
 
   constexpr iPoint2D() = default;
   constexpr iPoint2D(value_type a, value_type b) : x(a), y(b) {}

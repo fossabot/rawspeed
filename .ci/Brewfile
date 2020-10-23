@@ -1,5 +1,7 @@
 brew 'cmake'
 brew 'git'
+brew 'libomp'
+brew 'llvm@11'
 brew 'jpeg'
 brew 'ninja'
 brew 'pugixml'
