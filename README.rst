@@ -1,3 +1,5 @@
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FLebedevRI%2Frawspeed.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2FLebedevRI%2Frawspeed?ref=badge_shield)
+
 rawspeed |travis-ci| |appveyor-ci| OBS_ |codecov| |oss-fuzz|
 
 .. |travis-ci| image:: https://travis-ci.org/darktable-org/rawspeed.svg?branch=develop
@@ -95,3 +97,7 @@ Submitting Requests and Patches
 Please go to the `github page <rawspeed_>`_ and submit your (pull)requests and issues there.
 
 .. _rawspeed: https://github.com/darktable-org/rawspeed
+
+
+## License
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FLebedevRI%2Frawspeed.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2FLebedevRI%2Frawspeed?ref=badge_large)
